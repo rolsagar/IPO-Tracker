@@ -22,9 +22,9 @@ def status_of(i, t):
     return "Upcoming"
 
 
-def nice(d):
+def nice(d, year=True):
     try:
-        return datetime.strptime(d, "%Y-%m-%d").strftime("%d %b %Y")
+        return datetime.strptime(d, "%Y-%m-%d").strftime("%d %b %Y" if year else "%d %b")
     except (TypeError, ValueError):
         return "TBA"
 
@@ -40,8 +40,8 @@ def to_rows(items, t):
             "Price band (Rs)": band,
             "GMP %": round(gmp / hi * 100, 1) if hi else 0.0,
             "Opens": nice(i.get("open")),
-            "Closes": nice(i.get("close")),
-            "Listing": nice(i.get("list")),
+            "Closes": nice(i.get("close"), False),
+            "Listing": nice(i.get("list"), False),
             "Est. listing (Rs)": round(hi + gmp, 2) if hi else None,
             "Actual listing (Rs)": i.get("actual"),
             "Listing gain %": round((i["actual"] - hi) / hi * 100, 1) if i.get("actual") and hi else None,
@@ -71,7 +71,7 @@ st.caption("Price band, grey market premium (GMP), apply and listing dates. "
 c1, c2, c3, c4 = st.columns([3, 2, 2, 1])
 q = c1.text_input("Search company", "")
 f = c2.selectbox("Status", ["All", "Upcoming", "Open", "Closed", "Listed"])
-s = c3.selectbox("Sort by", ["Apply date", "GMP %", "Listing date"])
+s = c3.selectbox("Sort by", ["Apply date", "Subscription total", "GMP %", "Listing date"])
 c4.write("")
 if c4.button("Refresh"):
     st.cache_data.clear()
@@ -81,13 +81,18 @@ df = pd.DataFrame(to_rows(data["items"], today()))
 if df.empty:
     st.info("No IPOs found right now.")
 else:
+    for c in ["Est. listing (Rs)", "Actual listing (Rs)", "Listing gain %", "Subscribed total (x)",
+              "Retail (x)", "HNI/NII (x)", "QIB (x)", "Lot size", "Min. investment (Rs)"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
     if q:
         df = df[df["Company"].str.contains(q, case=False, na=False)]
     if f != "All":
         df = df[df["Status"] == f]
-    key = {"Apply date": ("_open", True), "GMP %": ("GMP %", False), "Listing date": ("_list", True)}[s]
-    df = df.sort_values(key[0], ascending=key[1]).drop(columns=["_open", "_list"])
-    st.dataframe(df.style.format(na_rep="-", precision=2), use_container_width=True, hide_index=True)
+    key = {"Apply date": ("_open", True), "Subscription total": ("Subscribed total (x)", False),
+           "GMP %": ("GMP %", False), "Listing date": ("_list", True)}[s]
+    df = df.sort_values(key[0], ascending=key[1], na_position="last").drop(columns=["_open", "_list"])
+    whole = {"GMP %": "{:.0f}", "Lot size": "{:.0f}", "Min. investment (Rs)": "{:.0f}"}
+    st.dataframe(df.style.format(whole, na_rep="-", precision=2), use_container_width=True, hide_index=True)
 
 if data.get("error"):
     st.warning("NSE: " + data["error"])
