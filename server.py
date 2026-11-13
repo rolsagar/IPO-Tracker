@@ -208,6 +208,74 @@ def fetch_gmp():
     return rows, ("; ".join(notes) or None)
 
 
+# ------------------------------------------------------- subscription source
+SUB_URLS = [
+    "https://www.niftytrader.in/ipo/subscription-status/mainboard",
+    "https://www.niftytrader.in/ipo/subscription-status/sme",
+    "https://www.niftytrader.in/ipo/subscription-status",
+]
+
+
+def _num(text):
+    m = re.search(r"\d+(?:\.\d+)?", str(text or ""))
+    return float(m.group(0)) if m else None
+
+
+def parse_sub_html(html):
+    p = _TableParser()
+    p.feed(html)
+    idx, out = None, []
+    for row in p.rows:
+        cleaned = [re.sub(r"[^a-z ]", "", c.lower()).strip() for c in row]
+        if any(c.startswith("company") for c in cleaned) and any(c.startswith("total") for c in cleaned):
+            idx = {}
+            for i, h in enumerate(cleaned):
+                if h.startswith("company"):
+                    idx.setdefault("name", i)
+                elif h in ("qib", "retail"):
+                    idx.setdefault(h, i)
+                elif h in ("hni", "nii", "hninii"):
+                    idx.setdefault("hni", i)
+                elif h.startswith("total"):
+                    idx.setdefault("total", i)
+            continue
+        if not idx or len(row) <= max(idx.values()) or not row[idx["name"]]:
+            continue
+        rec = {"name": row[idx["name"]]}
+        for k in ("qib", "hni", "retail", "total"):
+            rec[k] = _num(row[idx[k]]) if k in idx else None
+        out.append(rec)
+    return out
+
+
+def fetch_subs():
+    rows, seen, notes = [], set(), []
+    for url in SUB_URLS:
+        try:
+            got = parse_sub_html(get_gmp_html(url))
+        except Exception as e:
+            notes.append("%s: %s" % (url, e))
+            continue
+        for r in got:
+            k = norm(r["name"])
+            if k and k not in seen:
+                seen.add(k)
+                rows.append(r)
+    return rows, ("; ".join(notes) or None)
+
+
+def debug_subs():
+    out = {}
+    for url in SUB_URLS:
+        try:
+            html = get_gmp_html(url)
+            out[url] = {"bytes": len(html), "has_table": "<table" in html.lower(),
+                        "parsed": parse_sub_html(html)[:5]}
+        except Exception as e:
+            out[url] = "ERROR: %s" % e
+    return out
+
+
 def load_overrides():
     p = os.path.join(HERE, "overrides.json")
     try:
@@ -261,6 +329,22 @@ def build():
     except Exception as e:
         gmp_note = "GMP fetch failed: %s" % e
 
+    sub_note = None
+    try:
+        srows, sub_note = fetch_subs()
+        n = 0
+        for r in srows:
+            it = by_key.get(norm(r["name"]))
+            if it:
+                n += 1
+                for k in ("total", "retail", "hni", "qib"):
+                    if r.get(k) is not None:
+                        it["sub_" + k] = r[k]
+        sub_note = ("Subscription data matched for %d IPOs" % n) if srows else \
+                   "Subscription source returned no data (%s)" % sub_note
+    except Exception as e:
+        sub_note = "Subscription fetch failed: %s" % e
+
     for name, o in load_overrides().items():
         if name.startswith("_"):
             continue
@@ -272,7 +356,7 @@ def build():
                  "open": "", "close": "", "allot": "", "list": ""}
             e.update(o)
             items.append(e)
-    return {"items": items, "updated": int(time.time()), "error": error, "gmp_note": gmp_note}, raw
+    return {"items": items, "updated": int(time.time()), "error": error, "gmp_note": gmp_note, "sub_note": sub_note}, raw
 
 
 def get_data(force=False):
