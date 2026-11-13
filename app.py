@@ -87,7 +87,7 @@ else:
         df = df[df["Status"] == f]
     key = {"Apply date": ("_open", True), "GMP %": ("GMP %", False), "Listing date": ("_list", True)}[s]
     df = df.sort_values(key[0], ascending=key[1]).drop(columns=["_open", "_list"])
-    st.dataframe(df.style.format(na_rep="-"), use_container_width=True, hide_index=True)
+    st.dataframe(df.style.format(na_rep="-", precision=2), use_container_width=True, hide_index=True)
 
 if data.get("error"):
     st.warning("NSE: " + data["error"])
