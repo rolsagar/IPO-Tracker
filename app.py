@@ -38,13 +38,17 @@ def to_rows(items, t):
             "Company": i["name"],
             "Status": status_of(i, t),
             "Price band (Rs)": band,
-            "GMP (Rs)": gmp,
             "GMP %": round(gmp / hi * 100, 1) if hi else 0.0,
             "Opens": nice(i.get("open")),
             "Closes": nice(i.get("close")),
-            "Allotment": nice(i.get("allot")),
             "Listing": nice(i.get("list")),
             "Est. listing (Rs)": round(hi + gmp, 2) if hi else None,
+            "Actual listing (Rs)": i.get("actual"),
+            "Listing gain %": round((i["actual"] - hi) / hi * 100, 1) if i.get("actual") and hi else None,
+            "Subscribed total (x)": i.get("sub_total"),
+            "Retail (x)": i.get("sub_retail"),
+            "HNI/NII (x)": i.get("sub_hni"),
+            "QIB (x)": i.get("sub_qib"),
             "Lot size": lot or None,
             "Min. investment (Rs)": int(lot * hi) if lot and hi else None,
             "_open": i.get("open") or "9999", "_list": i.get("list") or "9999",
@@ -89,4 +93,9 @@ if data.get("error"):
     st.warning("NSE: " + data["error"])
 if data.get("gmp_note"):
     st.caption(data["gmp_note"])
+if data.get("sub_note"):
+    st.caption(data["sub_note"])
+with st.expander("Diagnostics (if subscription data is missing)"):
+    if st.button("Check subscription source"):
+        st.json(server.debug_subs())
 st.caption("Updated " + datetime.fromtimestamp(data["updated"], ZoneInfo("Asia/Kolkata")).strftime("%d %b %Y, %I:%M %p IST"))
