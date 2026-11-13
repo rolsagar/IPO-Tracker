@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IPO Tracker</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f6f7f9;--card:#fff;--text:#1a1d21;--muted:#6b7280;--line:#e3e6ea;--accent:#0f766e;--pos:#15803d;--neg:#b91c1c;--chip:#eef2f5;color-scheme:light}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101316;--card:#181c20;--text:#e8eaed;--muted:#9aa3ad;--line:#2a3036;--accent:#2dd4bf;--pos:#4ade80;--neg:#f87171;--chip:#232a30;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#101316;--card:#181c20;--text:#e8eaed;--muted:#9aa3ad;--line:#2a3036;--accent:#2dd4bf;--pos:#4ade80;--neg:#f87171;--chip:#232a30;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0 2px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.bar input,.bar select,.bar button,form input,form button{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text)}
+.bar input{flex:1;min-width:140px}
+button{cursor:pointer}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.note{background:var(--chip);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--muted);margin-bottom:14px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.name{font-weight:600;font-size:16px}
+.tag{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.tag.Open{background:var(--accent);color:#fff}
+.tag.Upcoming{border:1px solid var(--accent);color:var(--accent);background:transparent}
+.rows{margin:10px 0;display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.rows div span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.rows div b{font-weight:600}
+.pos{color:var(--pos)}.neg{color:var(--neg)}
+.acts{display:flex;gap:6px;justify-content:flex-end}
+.acts button{font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--muted)}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--text);width:min(440px,92vw);padding:16px}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+form label{display:block;font-size:12px;color:var(--muted);margin-top:10px}
+form input{width:100%;margin-top:3px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.empty{text-align:center;color:var(--muted);padding:40px 10px}
+.tw{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:900px;font-size:14px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--chip)}
+td.nm{font-weight:600;white-space:normal;min-width:180px}
+td.ac button{font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--muted);margin-left:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>IPO Tracker</h1>
+  <div class="sub">Upcoming and open IPOs: price band, grey market premium, apply and listing dates</div>
+  <div class="note">IPO list, GMP, lot size and dates come from NiftyTrader and NSE via the server. Anything in overrides.json on the server takes priority. Where only the upper price band is known, it is shown as a single price. GMP is unofficial and changes daily. Entries you add here are saved in this browser only. Verify everything with your broker before applying.</div>
+  <div class="bar">
+    <input id="q" placeholder="Search company…">
+    <select id="f"><option value="">All</option><option>Upcoming</option><option>Open</option><option>Closed</option><option>Listed</option></select>
+    <select id="s"><option value="open">Sort: apply date</option><option value="gmp">Sort: GMP %</option><option value="list">Sort: listing date</option></select>
+    <button class="primary" id="add">+ Add IPO</button>
+    <button id="refresh">↻ Refresh</button><button id="sample">Load sample data</button>
+    <button id="csv">Export CSV</button>
+  </div>
+  <div class="sub" id="stamp"></div>
+  <div class="tw"><table><thead><tr><th>Company</th><th>Status</th><th>Price band</th><th>GMP</th><th>Opens</th><th>Closes</th><th>Allotment</th><th>Listing</th><th>Est. listing price</th><th>Min. investment</th><th></th></tr></thead><tbody id="list"></tbody></table></div>
+</div>
+
+<dialog id="dlg">
+  <form id="frm" method="dialog">
+    <b id="dt">Add IPO</b>
+    <label>Company<input name="name" required></label>
+    <div class="two">
+      <label>Price band low (₹)<input name="lo" type="number" step="0.01" required></label>
+      <label>Price band high (₹)<input name="hi" type="number" step="0.01" required></label>
+    </div>
+    <div class="two">
+      <label>GMP (₹)<input name="gmp" type="number" step="0.01" value="0"></label>
+      <label>Lot size (shares)<input name="lot" type="number" min="1"></label>
+    </div>
+    <div class="two">
+      <label>Opens<input name="open" type="date" required></label>
+      <label>Closes<input name="close" type="date" required></label>
+    </div>
+    <div class="two">
+      <label>Allotment<input name="allot" type="date"></label>
+      <label>Listing<input name="list" type="date"></label>
+    </div>
+    <div class="acts" style="margin-top:14px">
+      <button type="button" id="cancel">Cancel</button>
+      <button class="primary" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+var KEY="ipo-tracker-v1",items=[],live=[],editId=null;
+function load(){try{items=JSON.parse(localStorage.getItem(KEY)||"[]")}catch(e){items=[]}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(items))}catch(e){}}
+function today(){var d=new Date();d.setHours(0,0,0,0);return d}
+function pd(s){return s?new Date(s+"T00:00:00"):null}
+function fmt(s){var d=pd(s);return d?d.toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}):"TBA"}
+function status(i){var t=today(),o=pd(i.open),c=pd(i.close),l=pd(i.list);
+  if(l&&t>=l)return"Listed";if(c&&t>c)return"Closed";if(o&&t>=o)return"Open";return"Upcoming"}
+function gmpPct(i){return i.hi>0?(i.gmp/i.hi)*100:0}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function render(){
+  var q=document.getElementById("q").value.toLowerCase(),f=document.getElementById("f").value,s=document.getElementById("s").value;
+  var rows=items.concat(live).filter(function(i){return i.name.toLowerCase().indexOf(q)>-1&&(!f||status(i)===f)});
+  rows.sort(function(a,b){
+    if(s==="gmp")return gmpPct(b)-gmpPct(a);
+    var k=s==="list"?"list":"open";return (a[k]||"9999").localeCompare(b[k]||"9999")});
+  var el=document.getElementById("list");
+  if(!rows.length){el.innerHTML='<tr><td colspan=\"11\" class=\"empty\">No IPOs yet. Tap “Add IPO” or load sample data.</td></tr>';return}
+  el.innerHTML=rows.map(function(i){
+    var st=status(i),p=gmpPct(i),exp=i.hi+(+i.gmp||0),cls=p>0?"pos":p<0?"neg":"";
+    var band=i.lo===i.hi?"₹"+i.hi:"₹"+i.lo+" – ₹"+i.hi;
+    var minInv=i.lot?"₹"+(i.lot*i.hi).toLocaleString("en-IN"):"–";
+    return '<tr><td class="nm">'+esc(i.name)+'</td><td><span class="tag '+st+'">'+st+'</span></td><td>'+band+'</td><td class="'+cls+'">₹'+i.gmp+' ('+p.toFixed(1)+'%)</td><td>'+fmt(i.open)+'</td><td>'+fmt(i.close)+'</td><td>'+fmt(i.allot)+'</td><td>'+fmt(i.list)+'</td><td>₹'+exp.toFixed(2)+'</td><td>'+minInv+'</td><td class="ac">'+(i.live?'<span class="tag">Live</span>':'<button data-e="'+i.id+'">Edit</button><button data-d="'+i.id+'">Delete</button>')+'</td></tr>'}).join("");
+}
+var dlg=document.getElementById("dlg"),frm=document.getElementById("frm");
+function openForm(i){editId=i?i.id:null;frm.reset();document.getElementById("dt").textContent=i?"Edit IPO":"Add IPO";
+  if(i)["name","lo","hi","gmp","lot","open","close","allot","list"].forEach(function(k){frm.elements[k].value=i[k]==null?"":i[k]});
+  dlg.showModal()}
+document.getElementById("add").onclick=function(){openForm()};
+document.getElementById("cancel").onclick=function(){dlg.close()};
+frm.onsubmit=function(){var d={};
+  ["name","open","close","allot","list"].forEach(function(k){d[k]=frm.elements[k].value});
+  ["lo","hi","gmp","lot"].forEach(function(k){d[k]=parseFloat(frm.elements[k].value)||0});
+  if(editId){items=items.map(function(x){return x.id===editId?Object.assign({id:editId},d):x})}
+  else{d.id=String(Date.now());items.push(d)}
+  save();render()};
+document.getElementById("list").onclick=function(e){var t=e.target;
+  if(t.dataset.d){items=items.filter(function(x){return x.id!==t.dataset.d});save();render()}
+  if(t.dataset.e){openForm(items.filter(function(x){return x.id===t.dataset.e})[0])}};
+["q","f","s"].forEach(function(id){document.getElementById(id).oninput=render});
+document.getElementById("sample").onclick=function(){
+  function off(n){var d=today();d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)}
+  var base=Date.now();
+  items=items.concat([
+    {id:""+base,name:"Sample Co A (dummy data)",lo:300,hi:315,gmp:40,lot:47,open:off(2),close:off(4),allot:off(7),list:off(9)},
+    {id:""+(base+1),name:"Sample Co B (dummy data)",lo:95,hi:100,gmp:0,lot:150,open:off(-1),close:off(1),allot:off(4),list:off(6)},
+    {id:""+(base+2),name:"Sample Co C (dummy data)",lo:500,hi:520,gmp:-10,lot:28,open:off(8),close:off(10),allot:off(13),list:off(15)}]);
+  save();render()};
+document.getElementById("csv").onclick=function(){
+  var h="Company,Low,High,GMP,GMP %,Lot,Opens,Closes,Allotment,Listing\n";
+  var b=items.map(function(i){return [i.name,i.lo,i.hi,i.gmp,gmpPct(i).toFixed(1),i.lot,i.open,i.close,i.allot,i.list].map(function(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"'}).join(",")}).join("\n");
+  navigator.clipboard&&navigator.clipboard.writeText(h+b).then(function(){alert("CSV copied to clipboard")},function(){alert("Could not copy")})};
+function refresh(){var st=document.getElementById("stamp");st.textContent="Loading live data…";
+  fetch("/api/ipos").then(function(r){return r.json()}).then(function(d){
+    live=d.items.map(function(x){x.live=true;return x});
+    st.textContent=(d.error?"Live fetch failed: "+d.error+". ":"")+live.length+" IPOs shown. Updated "+new Date(d.updated*1000).toLocaleTimeString("en-IN")+(d.gmp_note?". "+d.gmp_note:"");
+    render()}).catch(function(){st.textContent="Could not reach the server. Showing your saved entries only."})}
+document.getElementById("refresh").onclick=refresh;
+load();render();refresh();
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+{
+  "_help": "Add GMP, lot size, allotment and listing dates here. Keys are company names (matched loosely against NSE data). Companies not found on NSE are added as manual entries if they have hi and open.",
+  "Example Company Ltd": {"gmp": 40, "lot": 47, "allot": "2026-11-05", "list": "2026-11-09"}
+}
