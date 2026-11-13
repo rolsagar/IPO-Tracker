@@ -39,6 +39,17 @@ def norm(name):
     return re.sub(r"\s+", "", n)
 
 
+def fuzzy_key(keys, k):
+    """Exact match, else one name being the start of the other (min 8 chars)."""
+    if k in keys:
+        return k
+    if len(k) >= 8:
+        for o in keys:
+            if len(o) >= 8 and (o.startswith(k) or k.startswith(o)):
+                return o
+    return None
+
+
 def to_iso(s):
     if not s:
         return ""
@@ -210,6 +221,7 @@ def fetch_gmp():
 
 # ------------------------------------------------------- subscription source
 SUB_URLS = [
+    "https://groww.in/ipo/subscription",
     "https://www.niftytrader.in/ipo/subscription-status/mainboard",
     "https://www.niftytrader.in/ipo/subscription-status/sme",
     "https://www.niftytrader.in/ipo/subscription-status",
@@ -249,7 +261,8 @@ def parse_sub_html(html):
 
 
 def fetch_subs():
-    rows, seen, notes = [], set(), []
+    """Merge all sources; earlier sources win, later ones only fill gaps."""
+    merged, notes = {}, []
     for url in SUB_URLS:
         try:
             got = parse_sub_html(get_gmp_html(url))
@@ -258,10 +271,16 @@ def fetch_subs():
             continue
         for r in got:
             k = norm(r["name"])
-            if k and k not in seen:
-                seen.add(k)
-                rows.append(r)
-    return rows, ("; ".join(notes) or None)
+            if not k:
+                continue
+            mk = fuzzy_key(merged, k)
+            if mk is None:
+                merged[k] = dict(r)
+            else:
+                for f in ("qib", "hni", "retail", "total"):
+                    if merged[mk].get(f) is None and r.get(f) is not None:
+                        merged[mk][f] = r[f]
+    return list(merged.values()), ("; ".join(notes) or None)
 
 
 def debug_subs():
@@ -301,6 +320,7 @@ def build():
         matched = added = 0
         for r in rows:
             key = norm(r["name"])
+            key = fuzzy_key(by_key, key) or key
             it = by_key.get(key)
             if it:
                 matched += 1
@@ -334,7 +354,7 @@ def build():
         srows, sub_note = fetch_subs()
         n = 0
         for r in srows:
-            it = by_key.get(norm(r["name"]))
+            it = by_key.get(fuzzy_key(by_key, norm(r["name"])) or "")
             if it:
                 n += 1
                 for k in ("total", "retail", "hni", "qib"):
